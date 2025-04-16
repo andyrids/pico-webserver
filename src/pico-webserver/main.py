@@ -1,4 +1,4 @@
-"""Main script for MicroPython application.
+"""Main script for MicroPython webserver application.
 
 Author: Andrew Ridyard.
 
@@ -56,6 +56,8 @@ from machine import Timer, reset, soft_reset
 from micropython import const
 from time import localtime
 
+from typing import Literal
+from lib.microdot import Request, Response
 from lib.microdot import Microdot, send_file
 from lib.project.connection import (
     MQTTSecretsError,
@@ -155,12 +157,12 @@ async def microdot_server(app: Microdot, verbose: bool = False) -> None:
     """
 
     @app.route("/", methods=["GET"])
-    async def index(request):
+    async def index(request: Request) -> Response:
         """Send index.html to client"""
         return send_file("server/index.html", compressed=False)
 
     @app.route("/system", methods=["GET"])
-    async def system_information(request):
+    async def system_information(request: Request) -> dict[str, str]:
         """Send system information JSON to client."""
         system_details = os.uname()
         return {
@@ -169,7 +171,7 @@ async def microdot_server(app: Microdot, verbose: bool = False) -> None:
         }
 
     @app.route("/assets/<path:path>", methods=["GET"])
-    async def fetch_assets(request, path):
+    async def fetch_assets(request: Request, path: str) -> Response:
         """Send gzip compressed assets to client"""
         return send_file(
             f"server/assets/{path}",
@@ -179,10 +181,13 @@ async def microdot_server(app: Microdot, verbose: bool = False) -> None:
         )
 
     @app.route("/connection", methods=["POST"])
-    async def set_connection(request):
+    async def set_connection(request: Request) -> tuple[dict[str, bool], Literal[400]] | tuple[dict[str, bool], Literal[205]]:
         """Set secret names & values based on client Form data."""
-        WLAN_SSID = request.form.get("input-ssid")
-        WLAN_PASSWORD = request.form.get("input-password")
+        if request.form:
+            WLAN_SSID = request.form.get("input-ssid")
+            WLAN_PASSWORD = request.form.get("input-password")
+        else:
+            WLAN_SSID, WLAN_PASSWORD = None, None
 
         dynamic_set_secret("WLAN_PASSWORD", WLAN_PASSWORD)
         if not dynamic_set_secret("WLAN_SSID", WLAN_SSID):
@@ -191,7 +196,7 @@ async def microdot_server(app: Microdot, verbose: bool = False) -> None:
         return {"request": True, "valid": True}, 205
 
     @app.route("/reset", methods=["GET"])
-    async def reset(request):
+    async def reset(request) -> Literal['SERVER SHUTDOWN']:
         request.app.shutdown()
         return "SERVER SHUTDOWN"
 
@@ -222,8 +227,8 @@ def event_timer(
         debug_message(f"EVENT TIMER ({period} ms) - SETTING EVENT", verbose)
         event.set()
 
-    timer = Timer()
-    timer.init(period=period, mode=machine.Timer.PERIODIC, callback=set_event)
+    timer = Timer(1)
+    timer.init(period=period, mode=Timer.PERIODIC, callback=set_event)
     return timer
 
 
@@ -237,11 +242,11 @@ async def catch_async_interrupt(coroutine: FunctionType, **kwargs) -> None:
     try:
         return await coroutine(**kwargs)
     except asyncio.CancelledError:
-        debug_message(f"CATCH ASYNCIO TASK CancelledError", **kwargs)
+        debug_message("CATCH ASYNCIO TASK CancelledError", **kwargs)
     except KeyboardInterrupt:
-        debug_message(f"CATCH ASYNCIO TASK KeyboardInterrupt", **kwargs)
+        debug_message("CATCH ASYNCIO TASK KeyboardInterrupt", **kwargs)
     except Exception as e:
-        debug_message(f"CATCH ASYNCIO TASK Exception", **kwargs)
+        debug_message("CATCH ASYNCIO TASK Exception", **kwargs)
         sys.print_exception(e)
 
 
@@ -256,7 +261,7 @@ async def handle_async_exception(
         context (dict): Exception context details.
         verbose (bool, optional): Enable verbose debug messages.
     """
-    debug_message(f"HANDLE ASYNC EXCEPTION", verbose)
+    debug_message("HANDLE ASYNC EXCEPTION", verbose)
     sys.print_exception(context["exception"])
     sys.exit()
 
@@ -295,16 +300,14 @@ async def async_main(verbose: bool = False):
     event_loop.set_exception_handler(handle_async_exception)
 
     # asyncio Event instances
-    async_events = {}
-    async_events["connection_issue"] = asyncio.Event()
+    async_events = {"connection_issue": asyncio.Event()}
 
     gc.collect()
 
     # asyncio Task instances
-    async_tasks = {}
-    async_tasks["garbage_collector"] = asyncio.create_task(
+    async_tasks = {"garbage_collector": asyncio.create_task(
         garbage_collector(verbose)
-    )
+    )}
 
     await asyncio.sleep(5)
 
@@ -315,12 +318,12 @@ async def async_main(verbose: bool = False):
             # we indicate no connection issues
             async_events["connection_issue"].set()
         else:
-            debug_message(f"SYNCHRONISE TIME FAILED", verbose)
+            debug_message("SYNCHRONISE TIME FAILED", verbose)
 
     # Microdot HTTP server instance
     app = Microdot()
     try:
-        debug_message(f"ENTERING MAIN LOOP", verbose)
+        debug_message("ENTERING MAIN LOOP", verbose)
         while True:
             # handle connection issues
             if connection_issue(WLAN, WLAN_MODE, verbose):
@@ -328,7 +331,7 @@ async def async_main(verbose: bool = False):
                 await asyncio.sleep(15)
                 # if connection issue resolved - continue
                 if not connection_issue(WLAN, WLAN_MODE, verbose):
-                    debug_message(f"CONNECTION ISSUE RESOLVED", verbose)
+                    debug_message("CONNECTION ISSUE RESOLVED", verbose)
                     continue
                 debug_message(
                     f"CONNECTION ISSUE - STATUS: {WLAN.status()}", verbose
@@ -340,26 +343,26 @@ async def async_main(verbose: bool = False):
 
                 ip, subnet, gateway, dns = WLAN.ifconfig()
 
-                debug_message(f"AFTER MICRODOT SERVER STARTUP:", verbose)
-                debug_message(f"1. CONNECT TO PICO W WLAN", verbose)
+                debug_message("AFTER MICRODOT SERVER STARTUP:", verbose)
+                debug_message("1. CONNECT TO PICO W WLAN", verbose)
                 debug_message(f"2. NAVIGATE TO http://{gateway}:80", verbose)
-                debug_message(f"3. ENTER YOUR WLAN SSID & PASSWORD", verbose)
+                debug_message("3. ENTER YOUR WLAN SSID & PASSWORD", verbose)
 
                 # WLAN AP mode & Microdot server hosting while connection issue
                 while connection_issue(WLAN, WLAN_MODE, verbose):
                     # await server shutdown on user SSID & password input
                     await microdot_server(app, verbose)
-                    debug_message(f"RESETTING WLAN INTERFACE", verbose)
+                    debug_message("RESETTING WLAN INTERFACE", verbose)
                     # reset the interface and attempt connection
                     WLAN, WLAN_MODE = get_network_interface(verbose)
                     debug_network_status(WLAN, WLAN_MODE, verbose)
 
-                debug_message(f"CONNECTION ISSUE RESOLVED", verbose)
+                debug_message("CONNECTION ISSUE RESOLVED", verbose)
                 async_events["connection_issue"].set()
                 await asyncio.sleep(1)
                 # if NTP never synchronised
                 if not (await synchronise_time(verbose)):
-                    debug_message(f"SYNCHRONISE TIME FAILED", verbose)
+                    debug_message("SYNCHRONISE TIME FAILED", verbose)
             # hand over to other async tasks
             await asyncio.sleep(0)
     except (OSError, KeyboardInterrupt, MQTTSecretsError) as e:
@@ -369,27 +372,27 @@ async def async_main(verbose: bool = False):
         debug_message(f"Exception {e}", verbose)
         sys.print_exception(e)
     finally:
-        debug_message(f"ASYNC_MAIN LOOP CLEANUP", verbose)
+        debug_message("ASYNC_MAIN LOOP CLEANUP", verbose)
         try:
             app.shutdown()
         except AttributeError:
             pass
-        debug_message(f"DISCONNECT & DEACTIVATE WLAN INTERFACE", verbose)
+        debug_message("DISCONNECT & DEACTIVATE WLAN INTERFACE", verbose)
         WLAN.disconnect()
         deactivate_interface(WLAN, verbose)
         WLAN.deinit()
-        debug_message(f"ASYNC_MAIN LOOP TERMINATE", verbose)
+        debug_message("ASYNC_MAIN LOOP TERMINATE", verbose)
 
 
-debug_message(f"ASYNCIO.RUN ASYNC_MAIN", _VERBOSE)
+debug_message("ASYNCIO.RUN ASYNC_MAIN", _VERBOSE)
 try:
     asyncio.run(async_main(_VERBOSE))
 except KeyboardInterrupt:
-    debug_message(f"ASYNCIO.RUN KeyboardInterrupt", _VERBOSE)
+    debug_message("ASYNCIO.RUN KeyboardInterrupt", _VERBOSE)
 except Exception as e:
-    debug_message(f"ASYNCIO.RUN UNHANDLED EXCEPTION: {e}", _VERBOSE)
+    debug_message("ASYNCIO.RUN UNHANDLED EXCEPTION: {e}", _VERBOSE)
     sys.print_exception(e)
 finally:
-    debug_message(f"ASYNCIO.RUN CLEANUP", _VERBOSE)
+    debug_message("ASYNCIO.RUN CLEANUP", _VERBOSE)
     asyncio.new_event_loop()
-    debug_message(f"ASYNCIO.RUN TERMINATE", _VERBOSE)
+    debug_message("ASYNCIO.RUN TERMINATE", _VERBOSE)

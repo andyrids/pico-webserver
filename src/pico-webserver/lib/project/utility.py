@@ -1,4 +1,4 @@
-"""Utility module containing helper functions.
+"""Utility module containing MicroPython helper functions.
 
 Author: Andrew Ridyard.
 
@@ -30,6 +30,8 @@ import network
 import os
 import sys
 
+from io import IOBase, TextIOBase
+from typing import Optional, Union
 
 def debug_message(message: str, verbose: bool) -> None:
     """Print verbose debug message if verbose flag is True
@@ -38,7 +40,7 @@ def debug_message(message: str, verbose: bool) -> None:
         message (str): Message to print.
         verbose (bool): Message print flag.
     """
-    # "{:^30}".format("CENTERED STRING")
+    # "{:^30}".format("CENTRED STRING")
     if not verbose:
         return
     print("\n".join([i.strip() for i in message.split("\n")]))
@@ -46,7 +48,7 @@ def debug_message(message: str, verbose: bool) -> None:
 
 def debug_network_status(
         WLAN: network.WLAN,
-        mode: str,
+        mode: int,
         verbose: bool
     ) -> None:
     """Print verbose WLAN status debug message if verbose flag is True.
@@ -57,17 +59,20 @@ def debug_network_status(
         verbose (bool): Message print flag.
     """
     WLAN_MODE_STR = ("STA", "AP")[mode]
-    debug_message(
-        f"""
-        WLAN INFO
-        ---------
-        MODE: {WLAN_MODE_STR}
-        STATUS: {WLAN.status()}
-        ACTIVE: {WLAN.active()}
-        CONNECTED: {WLAN.isconnected()}
-        """,
-        verbose
-    )
+    status = WLAN.status()
+    active = WLAN.active()
+    connected = WLAN.isconnected()
+
+    message = f"""
+    WLAN INFO
+    ---------
+    MODE: {WLAN_MODE_STR}
+    STATUS: {status}
+    ACTIVE: {active}
+    CONNECTED: {connected}
+    """
+
+    debug_message(message, verbose)
 
 
 def create_secrets() -> str:
@@ -81,22 +86,15 @@ def create_secrets() -> str:
     SECRETS_MPY = "secrets.mpy"
 
     env_directory = os.listdir("env")
-    if not (SECRETS_PY in env_directory or SECRETS_MPY in env_directory):
+    if SECRETS_PY not in env_directory and SECRETS_MPY not in env_directory:
         with open(f"env/{SECRETS_PY}", "w") as secrets:
-            secret_lines = (
-                "AP_SSID = None\n"
-                "AP_PASSWORD = None\n"
-                "WLAN_SSID = None\n"
-                "WLAN_PASSWORD = None\n"
-                "MQTT_ENDPOINT = None\n"
-                "MQTT_CLIENT_ID = None\n"
-            )
-            secrets.write("".join(secret_lines))
+            secret_lines = ("WLAN_SSID = None", "WLAN_PASSWORD = None")
+            secrets.write("\n".join(secret_lines))
 
-    return (SECRETS_MPY, SECRETS_PY)[SECRETS_PY in os.listdir("env")]
+    return SECRETS_PY if SECRETS_PY in os.listdir("env") else SECRETS_MPY
 
 
-def dynamic_get_secret(name: str) -> str:
+def dynamic_get_secret(name: str) -> Union[str, None]:
     """Dynamically import 'env.secrets' and 
     return the secret specified by name.
 
@@ -105,46 +103,44 @@ def dynamic_get_secret(name: str) -> str:
     function calls.
 
     Args:
-        name (str): Name of secret enumeration
+        name (str): Name of secret enumeration.
 
     Returns:
-        str: Specified secret value
+        str | None: Specified secret value or None if empty string.
     """
     exec("import env.secrets", {})
     # use getattr rather than sys.modules["env.secrets"].AP_PASSWORD etc.
     secret = getattr(sys.modules["env.secrets"], name, None)
     del sys.modules["env.secrets"]
 
-    secret = None if isinstance(secret, str) and secret == "" else secret
-    return secret
+    return None if isinstance(secret, str) and secret == "" else secret
 
 
-def dynamic_set_secret(name: str, value: str) -> bool:
+def dynamic_set_secret(name: str, value: Optional[str] = None) -> bool:
     """Dynamically set secret variable value in the secrets file.
 
     Args:
-        name (str): Secret name
-        value (str): Secret value
+        name (str): Secret name.
+
+        value (Optional[str]): Secret value.
 
     Returns:
-        True if secret value not set to None, else False.
+        bool: True if new secret value is not None, else False.
     """
-    value = None if isinstance(value, str) and value == "" else value
+    value = None if isinstance(value, str) and not value else value
+    secret = f"{name}={value!r}\n" if value else f"{name}={value}\n"
 
     secrets_path = f"env/{create_secrets()}"
-
-    name_found = False
     with open(secrets_path, "r") as secrets:
-        secret_lines = secrets.readlines()
-        for i in range(len(secret_lines)):
-            if name not in secret_lines[i]:
-                continue
-            secret_line = "{} = {}\n" if value is None else "{} = '{}'\n"
-            secret_lines[i] = secret_line.format(name, value)
-            name_found = True
-
+        name_found = False
+        secret_lines: list[str] = secrets.readlines()
+        for i, secret_line in enumerate(secret_lines):
+            if name in secret_line:
+                secret_lines[i] = secret
+                name_found = True
+                break
     if not name_found:
-        secret_lines.append("{} = '{}'\n".format(name, value))
+        secret_lines.append(secret)
 
     with open(secrets_path, "w") as secrets:
         secrets.write("".join(secret_lines))

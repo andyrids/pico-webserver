@@ -1,9 +1,9 @@
 [project]
-name = "micropython-default"
-description = "Micropython project template for the Raspberry Pi Pico W"
-authors = [{name = "Andrew Ridyard", email = "ridyard12@gmail.com"}]
-maintainers = [{name = "Andrew Ridyard", email = "ridyard12@gmail.com"}]
-version = "0.0.2"
+name = "pico-webserver"
+description = "Micropython webserver template for the Raspberry Pi Pico W."
+authors = [{name = "Andrew Ridyard", email = "andrew.pretense394@passmail.net"}]
+maintainers = [{name = "Andrew Ridyard", email = "andrew.pretense394@passmail.net"}]
+version = "0.0.1"
 license = {file = "LICENSE"}
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
@@ -13,32 +13,31 @@ classifiers=[
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPL-3.0-or-later)",
     "Natural Language :: English",
+    "Operating System :: OS Independent",
     # Python versions
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Operating System :: OS Independent",
+    "Programming Language :: Python :: Implementation :: MicroPython",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Embedded Systems",
 ]
 keywords = ["rpi", "pico", "micropython", "bootstrap", "microdot"]
 dependencies = [
-    "micropython-rp2-rpi-pico-w-stubs>=1.23.0.post2",
-    "picoproject @ git+https://github.com/andyrids/picoproject",
+    "micropython-stdlib-stubs",
+    "micropython-rp2-rpi_pico_w-stubs",
 ]
 
 [dependency-groups]
 dev = [
     "bump-my-version>=0.29.0",
     "ruff>=0.7.4",
-    "sphinx>=8.1.3",
-    "sphinx-rtd-theme>=3.0.2",
 ]
 
 [project.urls]
-Repository = "https://github.com/andyrids/cookiecutter-aws-iot-pico-thing"
-Issues = "https://github.com/andyrids/cookiecutter-aws-iot-pico-thing/issues"
+Repository = "https://github.com/andyrids/pico-webserver"
+Issues = "https://github.com/andyrids/pico-webserver/issues"
 
 [tool.ruff]
 exclude = ["lib", "env"]
@@ -65,10 +64,10 @@ convention = "google"
 addopts = ["--import-mode=importlib"]
 
 [tool.uv.sources]
-picoproject = { git = "https://github.com/andyrids/picoproject" }
+# picoproject = { git = "https://github.com/andyrids/picoproject" }
 
 [tool.bumpversion]
-current_version = "0.0.2"
+current_version = "0.0.1"
 commit = true
 commit_args = "--no-verify"
 tag = true
