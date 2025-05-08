@@ -30,6 +30,7 @@ import network
 import os
 import sys
 
+from io import IOBase, TextIOBase
 from typing import Optional, Union
 
 def debug_message(message: str, verbose: bool) -> None:

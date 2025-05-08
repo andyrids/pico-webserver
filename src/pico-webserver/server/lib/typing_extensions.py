@@ -43,6 +43,14 @@ class _SubscriptableType:
 _Subscriptable = _SubscriptableType()
 
 
+def TypeVar(name, *types, bound: Any | None = None, covariant = False, contravariant = False, infer_variance = False):
+    return None
+
+
+def NewType(name, type):
+    return type
+
+
 class Any:
     pass
 
@@ -109,14 +117,6 @@ class TextIO:
 
 class Protocol:
     pass
-
-
-def TypeVar(name, *types, bound: Any | None = None, covariant = False, contravariant = False, infer_variance = False):
-    return None
-
-
-def NewType(name, type):
-    return type
 
 
 AnyStr = str

@@ -122,12 +122,11 @@ Output of `ls :` will indicate an empty system. The following command will clear
 (micropython-default) mpremote exec --no-follow "import os, machine, rp2; os.umount('/'); bdev = rp2.Flash(); os.VfsLfs2.mkfs(bdev, progsize=256); vfs = os.VfsLfs2(bdev, progsize=256); os.mount(vfs, '/'); machine.reset()"
 ```
 
-With the recent **picoproject** CLI dependency, you can also th command below, which will use mpreote in the background to format the device.
+With the recent **picoproject** CLI dependency, you can also th command below, which will use mpremote in the background to format the device.
 
 ```bash
 (micropython-default) CLI format
 ```
-
 
 From the project root directory, the following command will recursively copy all files within the project
 directory to the Pico W filesystem:
