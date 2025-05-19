@@ -5,7 +5,7 @@
 
 ## Introduction
 
-This MicroPython project acts as a template, which forms the basis for creating a Pico W 'thing' in an AWS IoT Core context. It also acts as a template for Micropython projects that need to facilitate access to WiFi through serving a credentials form. The default `main.py` runs an async application function (`async_main`), which carries out the following steps:
+This MicroPython project uses the `microdot` library to create a webserver on a Raspberry Pi Pico W. The default `main.py` runs an async application function (`async_main`), which carries out the following steps:
 
 1. Attempt WiFi STA connection using env/secrets
 2. Synchronise network time on STA connection
@@ -24,15 +24,17 @@ This project has the following dependency tree:
 
 ```text
 micropython-default
-├── picoproject                       <-- MicroPython project CLI
 ├── bump-my-version (group: dev)
 ├── micropython-rp2-rpi-pico-w-stubs  <-- MicroPython Pico W stubs
 ├── ruff (group: dev)                 <-- Linting/formatting
-├── sphinx (group: dev)               <-- Documentation
-└── sphinx-rtd-theme (group: dev)     <-- Read the docs theme
 ```
 
-I am testing the use of another library, picoproject, which is a CLI (README[repository](https://github.com/andyrids/picoproject)) for managing local installation of MicroPython packages for development, MicroPython binary compilation and exporting of project files.
+## Certs
+
+```sh
+openssl ecparam -name prime256v1 -genkey -noout -out ec_key.der -outform DER
+openssl req -new -x509 -key ec_key.der -out ec_cert.der -outform DER -days 365 -nodes
+```
 
 ## Project Layout
 
@@ -132,7 +134,7 @@ From the project root directory, the following command will recursively copy all
 directory to the Pico W filesystem:
 
 ```bash
-$ (micropython-default) mpremote cp -r ./src/micropython_default/* :
+$ (pico-webserver) mpremote cp -r ./src/pico-webserver/* :
 cp ./src/micropython_default/env :
 cp ./src/micropython_default/lib :
 cp ./src/micropython_default/main.py :  

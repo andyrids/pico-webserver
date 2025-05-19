@@ -40,7 +40,6 @@ Raises:
 NOTE: Set _VERBOSE to True for verbose debug messages.
 """
 
-import array
 import asyncio
 import binascii
 import gc
@@ -53,18 +52,15 @@ import ssl
 import sys
 
 from machine import Timer, reset, soft_reset
-from micropython import const
 from time import localtime
 
 from typing import Callable, Literal
 from lib.microdot import Request, Response
 from lib.microdot import Microdot, send_file
 from lib.project.connection import (
-    MQTTSecretsError,
     access_point_reset,
     connection_issue,
     deactivate_interface,
-    get_client_interface,
     get_network_interface,
 )
 from lib.project.utility import (
@@ -172,7 +168,9 @@ async def microdot_server(app: Microdot, verbose: bool = False) -> None:
         )
 
     @app.route("/connection", methods=["POST"])
-    async def set_connection(request: Request) -> tuple[dict[str, bool], Literal[400]] | tuple[dict[str, bool], Literal[205]]:
+    async def set_connection(
+            request: Request
+        ) -> tuple[dict[str, bool], Literal[400]] | tuple[dict[str, bool], Literal[205]]:
         """Set secret names & values based on client Form data."""
         if request.form:
             WLAN_SSID = request.form.get("input-ssid")
@@ -192,7 +190,9 @@ async def microdot_server(app: Microdot, verbose: bool = False) -> None:
         return "SERVER SHUTDOWN"
 
     debug_message("ASYNC TASK - MICRODOT SERVER STARTUP", verbose)
-    await app.start_server(port=80, debug=verbose, ssl=None) # type: ignore
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain("/server/certs/ec_cert.der", "/server/certs/ec_key.der")
+    await app.start_server(port=443, debug=verbose, ssl=ctx) # type: ignore
     debug_message("ASYNC TASK - MICRODOT SERVER SHUTDOWN", verbose)
 
 
@@ -268,14 +268,6 @@ async def async_main(verbose: bool = False) -> None:
         E. Shutdown server & attempt WLAN connection
         F. Repeat A - E as necessary
 
-    2. Facilitate AWS IoT Core communication over MQTT
-        A. Publish telemetry data at set intervals
-        B. Carry out tasks in command topic messages
-            I. Read data from moisture sensor
-            II. Activate solenoid valve
-
-    TODO: Alexa skill creation for MQTT communication with device.
-
     Args:
         verbose (bool, optional): Enable verbose debug messages.
     """
@@ -303,7 +295,7 @@ async def async_main(verbose: bool = False) -> None:
     await asyncio.sleep(5)
 
     # check if WLAN connected in STA mode
-    if not connection_issue(WLAN, WLAN_MODE, verbose):
+    if not connection_issue(WLAN, WLAN_MODE):
         # if 'synchronise_time' coroutine completes successfully...
         if await synchronise_time(verbose):
             # we indicate no connection issues
@@ -317,11 +309,11 @@ async def async_main(verbose: bool = False) -> None:
         debug_message("ENTERING MAIN LOOP", verbose)
         while True:
             # handle connection issues
-            if connection_issue(WLAN, WLAN_MODE, verbose):
+            if connection_issue(WLAN, WLAN_MODE,):
                 # can reconnect if only intermittent connection issue
                 await asyncio.sleep(15)
                 # if connection issue resolved - continue
-                if not connection_issue(WLAN, WLAN_MODE, verbose):
+                if not connection_issue(WLAN, WLAN_MODE):
                     debug_message("CONNECTION ISSUE RESOLVED", verbose)
                     continue
                 debug_message(
@@ -334,13 +326,14 @@ async def async_main(verbose: bool = False) -> None:
 
                 ip, subnet, gateway, dns = WLAN.ifconfig()
 
+                debug_message("SWITCHING WLAN TO AP MODE", verbose)
                 debug_message("AFTER MICRODOT SERVER STARTUP:", verbose)
                 debug_message("1. CONNECT TO PICO W WLAN", verbose)
-                debug_message(f"2. NAVIGATE TO http://{gateway}:80", verbose)
+                debug_message(f"2. NAVIGATE TO https://{gateway}", verbose)
                 debug_message("3. ENTER YOUR WLAN SSID & PASSWORD", verbose)
 
                 # WLAN AP mode & Microdot server hosting while connection issue
-                while connection_issue(WLAN, WLAN_MODE, verbose):
+                while connection_issue(WLAN, WLAN_MODE):
                     # await server shutdown on user SSID & password input
                     await microdot_server(app, verbose)
                     debug_message("RESETTING WLAN INTERFACE", verbose)
@@ -356,7 +349,7 @@ async def async_main(verbose: bool = False) -> None:
                     debug_message("SYNCHRONISE TIME FAILED", verbose)
             # hand over to other async tasks
             await asyncio.sleep(0)
-    except (OSError, KeyboardInterrupt, MQTTSecretsError) as e:
+    except (OSError, KeyboardInterrupt) as e:
         debug_message(f"{e}", verbose)
         sys.print_exception(e)
     except Exception as e:

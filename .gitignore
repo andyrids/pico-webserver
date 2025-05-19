@@ -2,9 +2,13 @@
 **/*.mpy
 
 # Certificates
-certs/*.key
-certs/*.crt
-certs/*.der
+**/certs/*.key
+**/certs/*.crt
+**/certs/*.der
+
+# Secrets
+**/env/*.py
+**/env/*.mpy
 
 # Export
 export/*
